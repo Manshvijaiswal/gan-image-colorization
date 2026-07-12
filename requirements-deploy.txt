@@ -1,0 +1,13 @@
+﻿# Minimal dependencies for the DEPLOYED web app only (web/server.py).
+# Excludes training-only packages (pytorch-fid, matplotlib, streamlit,
+# scikit-image) and uses the CPU-only PyTorch build. inference.py uses a
+# pure-PyTorch LAB->RGB conversion (see utils/color_utils.py), so
+# scikit-image/scipy (a genuinely heavy dependency) is not needed at all
+# for serving -- only for training-time visualization/dataset conversion.
+
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.2.2+cpu
+
+numpy>=1.23.0
+Pillow>=9.3.0
+flask>=2.3.0

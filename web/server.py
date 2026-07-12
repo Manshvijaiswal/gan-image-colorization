@@ -1,19 +1,4 @@
-"""
-web/server.py
---------------
-Flask backend for the deployed web demo.
-
-Serves:
-  GET  /               -> the custom frontend (index.html)
-  POST /api/colorize   -> accepts an uploaded image, returns a colorized PNG
-
-Model weights are loaded once at startup (not per-request) for speed.
-If GENERATOR_WEIGHTS_URL is set, the weight file is downloaded on first
-boot (used for deployment, since trained weights are too large for a
-normal git push -- see README for hosting instructions).
-"""
-
-import os
+﻿import os
 import io
 import sys
 import base64
@@ -22,6 +7,8 @@ import urllib.request
 from flask import Flask, request, jsonify, send_from_directory
 import torch
 
+torch.set_num_threads(1)
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.generator import UNetGenerator
 from inference import colorize_image_from_pil
@@ -29,7 +16,7 @@ from inference import colorize_image_from_pil
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(APP_DIR, "static")
 WEIGHTS_PATH = os.environ.get("GENERATOR_WEIGHTS_PATH", "checkpoints/generator_final.pth")
-WEIGHTS_URL = os.environ.get("GENERATOR_WEIGHTS_URL", "")   # e.g. a GitHub Release asset URL
+WEIGHTS_URL = os.environ.get("GENERATOR_WEIGHTS_URL", "")
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -41,9 +28,7 @@ def ensure_weights_available():
         return
     if not WEIGHTS_URL:
         raise FileNotFoundError(
-            f"No weights found at {WEIGHTS_PATH} and GENERATOR_WEIGHTS_URL is not set. "
-            "Either place generator_final.pth at that path, or set the env var to a "
-            "direct download URL (see README -> Deployment)."
+            f"No weights found at {WEIGHTS_PATH} and GENERATOR_WEIGHTS_URL is not set."
         )
     os.makedirs(os.path.dirname(WEIGHTS_PATH), exist_ok=True)
     print(f"Downloading generator weights from {WEIGHTS_URL} ...")
@@ -54,7 +39,11 @@ def ensure_weights_available():
 print("Loading generator model...")
 ensure_weights_available()
 generator = UNetGenerator(in_channels=1, out_channels=2, features=64).to(DEVICE)
-generator.load_state_dict(torch.load(WEIGHTS_PATH, map_location=DEVICE))
+_state_dict = torch.load(WEIGHTS_PATH, map_location=DEVICE)
+generator.load_state_dict(_state_dict)
+del _state_dict
+import gc
+gc.collect()
 generator.eval()
 print(f"Model loaded on {DEVICE}.")
 

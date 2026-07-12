@@ -1,25 +1,11 @@
-"""
-inference.py
---------------
-Load a trained generator and colorize a single grayscale image, or a
-whole folder of images. This is what the Streamlit/Flask app calls
-under the hood.
-
-Usage:
-    python inference.py --checkpoint checkpoints/generator_final.pth \
-                         --input path/to/grayscale.jpg \
-                         --output path/to/colorized.jpg
-"""
-
-import argparse
+﻿import argparse
 import torch
 import numpy as np
 from PIL import Image
-import torchvision.transforms as T
 
 from config import cfg
 from models.generator import UNetGenerator
-from utils.color_utils import normalize_l, lab_tensors_to_rgb
+from utils.color_utils import normalize_l, lab_batch_to_rgb_torch
 
 
 def load_generator(checkpoint_path, device=None):
@@ -31,11 +17,6 @@ def load_generator(checkpoint_path, device=None):
 
 
 def colorize_image_from_pil(G, pil_image, image_size=256, device=None):
-    """
-    Same logic as colorize_image(), but takes an already-loaded PIL image
-    instead of a file path. Used by the Flask API (web/server.py), where
-    the image arrives as an in-memory upload rather than a file on disk.
-    """
     device = device or cfg.DEVICE
 
     img = pil_image.convert("L")
@@ -48,19 +29,15 @@ def colorize_image_from_pil(G, pil_image, image_size=256, device=None):
 
     with torch.no_grad():
         fake_ab = G(L_tensor)
+        rgb_tensor = lab_batch_to_rgb_torch(L_tensor, fake_ab)
 
-    rgb = lab_tensors_to_rgb(L_tensor[0].cpu(), fake_ab[0].cpu())
+    rgb = rgb_tensor[0].permute(1, 2, 0).cpu().numpy()
     out_img = Image.fromarray((rgb * 255).astype(np.uint8))
     out_img = out_img.resize(original_size, Image.BICUBIC)
     return out_img
 
 
 def colorize_image(G, image_path, image_size=256, device=None):
-    """
-    Takes ANY input image (grayscale or color -- if color, we discard
-    the color and only use luminance, so a user can test on already
-    colored images too). Returns a PIL RGB image.
-    """
     device = device or cfg.DEVICE
     img = Image.open(image_path)
     return colorize_image_from_pil(G, img, image_size=image_size, device=device)
