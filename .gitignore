@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Data (never commit raw datasets)
+data/raw/
+data/raw_coco/
+*.zip
+
+# Model checkpoints (large binaries -- use Git LFS or external hosting, see DEPLOYMENT.md)
+checkpoints/*.pth
+!checkpoints/.gitkeep
+
+# Training outputs
+outputs/*.png
+!outputs/.gitkeep
+!assets/examples/*.png
+
+# Streamlit / temp files
+temp_upload.png
+temp_*.png
+.streamlit/secrets.toml
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/

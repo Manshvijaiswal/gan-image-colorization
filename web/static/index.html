@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chroma — GAN Photo Colorization</title>
+<meta name="description" content="A conditional GAN that restores color to black-and-white photographs. U-Net generator, PatchGAN discriminator, trained on real photographs.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --graphite: #141412;
+    --graphite-2: #1c1b18;
+    --paper: #eeeae1;
+    --paper-2: #e2ddd0;
+    --silver: #948f82;
+    --ink: #201f1b;
+    --safelight: #c23b2e;
+    --safelight-dim: #8f2c22;
+    --fixer: #c99a44;
+    --line: rgba(238,234,225,0.14);
+    --line-dark: rgba(32,31,27,0.12);
+    --radius: 3px;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--graphite);
+    color:var(--paper);
+    font-family:'Inter', sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;}
+  img{max-width:100%; display:block;}
+
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.72rem;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--safelight);
+    display:flex;
+    align-items:center;
+    gap:0.6em;
+  }
+  .eyebrow::before{
+    content:"";
+    width:6px; height:6px;
+    background:var(--safelight);
+    border-radius:50%;
+    box-shadow:0 0 8px 1px var(--safelight);
+  }
+
+  h1,h2,h3{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:600;
+    line-height:1.05;
+    letter-spacing:-0.01em;
+  }
+
+  .wrap{
+    max-width:1180px;
+    margin:0 auto;
+    padding:0 32px;
+  }
+
+  :focus-visible{
+    outline:2px solid var(--safelight);
+    outline-offset:3px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
+  }
+
+  /* ---------- Nav ---------- */
+  nav{
+    position:sticky; top:0; z-index:50;
+    background:rgba(20,20,18,0.86);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  nav .wrap{
+    display:flex; align-items:center; justify-content:space-between;
+    height:64px;
+  }
+  .brand{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:1.15rem;
+    letter-spacing:-0.01em;
+    display:flex; align-items:center; gap:10px;
+  }
+  .brand .dot{width:9px; height:9px; border-radius:50%; background:var(--safelight); box-shadow:0 0 10px 2px var(--safelight);}
+  .navlinks{display:flex; gap:32px; font-size:0.88rem; color:var(--silver);}
+  .navlinks a{text-decoration:none; transition:color .15s;}
+  .navlinks a:hover{color:var(--paper);}
+  @media (max-width:640px){.navlinks{display:none;}}
+
+  /* ---------- Hero ---------- */
+  .hero{
+    padding:88px 0 64px;
+    border-bottom:1px solid var(--line);
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(194,59,46,0.12), transparent 60%),
+      var(--graphite);
+  }
+  .hero-grid{
+    display:grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap:64px;
+    align-items:center;
+  }
+  @media (max-width:900px){ .hero-grid{grid-template-columns:1fr; gap:44px;} }
+
+  .hero h1{
+    font-size:clamp(2.4rem, 4.6vw, 3.6rem);
+    margin:18px 0 20px;
+  }
+  .hero h1 em{
+    font-style:normal;
+    color:var(--fixer);
+  }
+  .hero p.lede{
+    color:var(--silver);
+    font-size:1.05rem;
+    max-width:46ch;
+    margin-bottom:28px;
+  }
+  .hero-cta{display:flex; gap:14px; flex-wrap:wrap;}
+  .btn{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:600;
+    font-size:0.92rem;
+    padding:13px 22px;
+    border-radius:var(--radius);
+    border:1px solid transparent;
+    cursor:pointer;
+    text-decoration:none;
+    display:inline-flex; align-items:center; gap:8px;
+    transition:transform .12s ease, background .15s ease, border-color .15s ease;
+  }
+  .btn:active{transform:translateY(1px);}
+  .btn-primary{background:var(--safelight); color:#fff;}
+  .btn-primary:hover{background:#d6493b;}
+  .btn-ghost{background:transparent; color:var(--paper); border-color:var(--line);}
+  .btn-ghost:hover{border-color:var(--paper);}
+
+  .specs-mini{
+    display:flex; gap:24px; margin-top:36px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.78rem; color:var(--silver);
+    flex-wrap:wrap;
+  }
+  .specs-mini span b{color:var(--paper); font-weight:500;}
+
+  /* ---------- Demo panel (signature element) ---------- */
+  .demo-panel{
+    background:var(--graphite-2);
+    border:1px solid var(--line);
+    border-radius:6px;
+    overflow:hidden;
+  }
+  .demo-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 18px;
+    border-bottom:1px solid var(--line);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.72rem;
+    color:var(--silver);
+    letter-spacing:0.06em;
+  }
+  .demo-head .lamp{display:flex; align-items:center; gap:8px;}
+  .demo-head .lamp::before{
+    content:""; width:8px; height:8px; border-radius:50%;
+    background:#4a4a44;
+  }
+  .demo-head.active .lamp::before{
+    background:var(--safelight);
+    box-shadow:0 0 8px 2px var(--safelight);
+  }
+
+  .demo-body{
+    display:flex;
+  }
+  .sprockets{
+    width:22px;
+    background:#0f0f0d;
+    display:flex; flex-direction:column;
+    align-items:center;
+    justify-content:space-evenly;
+    padding:14px 0;
+    flex-shrink:0;
+  }
+  .sprocket-hole{
+    width:8px; height:8px; border-radius:1px;
+    background:#2a2a26;
+    transition:background .3s ease, box-shadow .3s ease;
+  }
+  .sprocket-hole.lit{
+    background:var(--fixer);
+    box-shadow:0 0 6px 1px rgba(201,154,68,0.7);
+  }
+
+  .stage{
+    position:relative;
+    flex:1;
+    aspect-ratio:4/3;
+    background:#0f0f0d repeating-linear-gradient(45deg, #16161380 0 12px, #0f0f0d 12px 24px);
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+  }
+  .stage img{
+    position:absolute; inset:0;
+    width:100%; height:100%; object-fit:cover;
+  }
+  .stage .wipe-color{
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path 1.6s cubic-bezier(.65,0,.35,1);
+  }
+  .stage .wipe-color.revealed{
+    clip-path: inset(0 0 0 0);
+  }
+  .dropzone{
+    text-align:center;
+    padding:24px;
+    color:var(--silver);
+    font-size:0.88rem;
+    cursor:pointer;
+    z-index:2;
+  }
+  .dropzone svg{margin:0 auto 12px; opacity:0.7;}
+  .dropzone .hint{font-family:'IBM Plex Mono', monospace; font-size:0.7rem; margin-top:8px; color:#6b6a63;}
+  .stage.drag-over{outline:2px dashed var(--safelight); outline-offset:-8px;}
+
+  .demo-foot{
+    padding:14px 18px;
+    border-top:1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .demo-status{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.74rem;
+    color:var(--silver);
+  }
+  .demo-status.error{color:var(--safelight);}
+  .btn-small{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.72rem;
+    padding:8px 14px;
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--paper);
+    border-radius:var(--radius);
+    cursor:pointer;
+  }
+  .btn-small:hover{border-color:var(--paper);}
+  .btn-small:disabled{opacity:0.4; cursor:not-allowed;}
+  input[type=file]{display:none;}
+
+  /* ---------- Process section ---------- */
+  .process{
+    background:var(--paper);
+    color:var(--ink);
+    padding:96px 0;
+  }
+  .process .eyebrow{color:var(--safelight-dim);}
+  .process .eyebrow::before{background:var(--safelight-dim); box-shadow:none;}
+  .process h2{font-size:clamp(1.8rem,3vw,2.4rem); margin:14px 0 12px; max-width:20ch;}
+  .process > .wrap > p{color:#5c584e; max-width:56ch; margin-bottom:56px;}
+
+  .stages{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:1px;
+    background:var(--line-dark);
+    border:1px solid var(--line-dark);
+  }
+  @media (max-width:800px){ .stages{grid-template-columns:1fr;} }
+  .stage-card{
+    background:var(--paper);
+    padding:34px 30px;
+  }
+  .stage-num{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.78rem;
+    color:var(--safelight-dim);
+    margin-bottom:18px;
+  }
+  .stage-card h3{font-size:1.15rem; margin-bottom:10px;}
+  .stage-card p{color:#5c584e; font-size:0.93rem;}
+  .stage-card .tag{
+    display:inline-block;
+    margin-top:16px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.68rem;
+    letter-spacing:0.04em;
+    color:#8a8578;
+    border:1px solid #cfc9ba;
+    border-radius:20px;
+    padding:4px 11px;
+  }
+
+  /* ---------- Metrics ---------- */
+  .metrics{
+    background:var(--graphite);
+    padding:88px 0;
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+  }
+  .metrics h2{font-size:clamp(1.6rem,2.6vw,2.1rem); margin-bottom:40px;}
+  .metric-row{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:1px;
+    background:var(--line);
+    border:1px solid var(--line);
+  }
+  @media (max-width:800px){ .metric-row{grid-template-columns:1fr;} }
+  .metric-cell{
+    background:var(--graphite-2);
+    padding:28px 26px;
+  }
+  .metric-cell .label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.7rem;
+    letter-spacing:0.08em;
+    color:var(--silver);
+    text-transform:uppercase;
+  }
+  .metric-cell .value{
+    font-family:'Space Grotesk', sans-serif;
+    font-size:2.2rem;
+    font-weight:600;
+    margin:10px 0 6px;
+    color:var(--fixer);
+  }
+  .metric-cell .value .unit{font-size:1rem; color:var(--silver); font-weight:400;}
+  .metric-cell .desc{font-size:0.82rem; color:var(--silver);}
+  .metrics-note{
+    margin-top:18px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.72rem;
+    color:#6b6a63;
+  }
+
+  .stack-row{
+    display:flex; flex-wrap:wrap; gap:10px;
+    margin-top:44px;
+  }
+  .stack-chip{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.72rem;
+    color:var(--paper);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:6px 13px;
+  }
+
+  /* ---------- Footer ---------- */
+  footer{
+    padding:48px 0;
+    background:var(--graphite);
+  }
+  footer .wrap{
+    display:flex; justify-content:space-between; align-items:center;
+    flex-wrap:wrap; gap:16px;
+    font-size:0.84rem; color:var(--silver);
+  }
+  footer a{text-decoration:none; color:var(--paper); border-bottom:1px solid var(--line);}
+  footer a:hover{border-color:var(--paper);}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <div class="brand"><span class="dot"></span>Chroma</div>
+    <div class="navlinks">
+      <a href="#demo">Demo</a>
+      <a href="#process">How it works</a>
+      <a href="#metrics">Results</a>
+      <a href="https://github.com/" id="github-link">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="eyebrow">Conditional GAN &middot; U-Net &middot; PatchGAN</div>
+      <h1>Black-and-white photographs, <em>developed</em> back into color.</h1>
+      <p class="lede">Chroma is a generative adversarial network trained to predict plausible, realistic color from a single grayscale channel — the way a darkroom print emerges from a blank sheet, one stage at a time.</p>
+      <div class="hero-cta">
+        <a href="#demo" class="btn btn-primary">Try it on a photo</a>
+        <a href="#process" class="btn btn-ghost">See the architecture</a>
+      </div>
+      <div class="specs-mini">
+        <span><b>LAB</b> color space</span>
+        <span><b>256&times;256</b> input</span>
+        <span><b>LSGAN</b> adversarial loss</span>
+        <span><b>VGG</b> perceptual loss</span>
+      </div>
+    </div>
+
+    <div class="demo-panel" id="demo">
+      <div class="demo-head" id="demoHead">
+        <span class="lamp">SAFELIGHT</span>
+        <span id="demoHeadStatus">STANDBY</span>
+      </div>
+      <div class="demo-body">
+        <div class="sprockets" id="sprockets"></div>
+        <div class="stage" id="stage">
+          <div class="dropzone" id="dropzone">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="5" width="18" height="14" rx="1.5"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 15l-5-5-4 4-2-2-5 5"/></svg>
+            <div>Drop a photo, or click to choose one</div>
+            <div class="hint">JPG / PNG &middot; processed in your session, not stored</div>
+          </div>
+          <img id="grayImg" style="display:none;">
+          <img id="colorImg" class="wipe-color" style="display:none;">
+        </div>
+      </div>
+      <div class="demo-foot">
+        <div class="demo-status" id="demoStatus">Awaiting image</div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-small" id="resetBtn" disabled>Reset</button>
+          <button class="btn-small" id="downloadBtn" disabled>Download result</button>
+        </div>
+      </div>
+    </div>
+    <input type="file" id="fileInput" accept="image/png, image/jpeg">
+  </div>
+</section>
+
+<section class="process" id="process">
+  <div class="wrap">
+    <div class="eyebrow">The pipeline</div>
+    <h2>Three stages, the same order every darkroom print follows.</h2>
+    <p>Chroma's training process mirrors traditional photo development — expose the base image, develop detail into it, then fix the result so it holds. Each stage below is a real step in the network's forward pass.</p>
+    <div class="stages">
+      <div class="stage-card">
+        <div class="stage-num">01 — EXPOSE</div>
+        <h3>Split the image into light and color</h3>
+        <p>Every training photo is converted to LAB color space. The L channel (lightness) becomes the network's only input — identical to a grayscale photograph. The a/b channels, which hold all the color, are set aside as the target to predict.</p>
+        <span class="tag">RGB → LAB</span>
+      </div>
+      <div class="stage-card">
+        <div class="stage-num">02 — DEVELOP</div>
+        <h3>The generator predicts color</h3>
+        <p>An 8-layer U-Net receives the L channel and predicts a and b. Skip connections carry fine edge detail straight from encoder to decoder, so color lands precisely at object boundaries rather than bleeding across them.</p>
+        <span class="tag">U-Net Generator</span>
+      </div>
+      <div class="stage-card">
+        <div class="stage-num">03 — FIX</div>
+        <h3>The discriminator holds it to the light</h3>
+        <p>A PatchGAN discriminator inspects overlapping 70×70 patches and rejects anything that looks implausible, pushing the generator toward vivid, realistic color rather than the safe, desaturated average.</p>
+        <span class="tag">PatchGAN Discriminator</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="metrics" id="metrics">
+  <div class="wrap">
+    <div class="eyebrow">Measured, not just eyeballed</div>
+    <h2>Evaluated on a held-out test set</h2>
+    <div class="metric-row">
+      <div class="metric-cell">
+        <div class="label">PSNR</div>
+        <div class="value">— <span class="unit">dB</span></div>
+        <div class="desc">Pixel-level fidelity to the original color photograph.</div>
+      </div>
+      <div class="metric-cell">
+        <div class="label">SSIM</div>
+        <div class="value">—</div>
+        <div class="desc">Structural similarity — luminance, contrast, and structure combined.</div>
+      </div>
+      <div class="metric-cell">
+        <div class="label">FID</div>
+        <div class="value">—</div>
+        <div class="desc">Distributional realism against real photographs, via Inception features.</div>
+      </div>
+    </div>
+    <div class="metrics-note">/// Run evaluate.py and replace these three values before publishing — see README.</div>
+
+    <div class="stack-row">
+      <span class="stack-chip">PyTorch</span>
+      <span class="stack-chip">Flask</span>
+      <span class="stack-chip">scikit-image</span>
+      <span class="stack-chip">LAB color space</span>
+      <span class="stack-chip">Conditional GAN</span>
+      <span class="stack-chip">VGG16 Perceptual Loss</span>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>Chroma — a GAN-based image colorization project.</div>
+    <div><a href="https://github.com/" id="github-link-2">View source on GitHub</a></div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  const dropzone = document.getElementById('dropzone');
+  const stage = document.getElementById('stage');
+  const fileInput = document.getElementById('fileInput');
+  const grayImg = document.getElementById('grayImg');
+  const colorImg = document.getElementById('colorImg');
+  const demoStatus = document.getElementById('demoStatus');
+  const demoHead = document.getElementById('demoHead');
+  const demoHeadStatus = document.getElementById('demoHeadStatus');
+  const resetBtn = document.getElementById('resetBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const sprocketsEl = document.getElementById('sprockets');
+
+  // Build sprocket holes (signature filmstrip detail)
+  const HOLE_COUNT = 9;
+  for(let i=0;i<HOLE_COUNT;i++){
+    const d = document.createElement('div');
+    d.className = 'sprocket-hole';
+    sprocketsEl.appendChild(d);
+  }
+  const holes = Array.from(sprocketsEl.children);
+
+  let currentFile = null;
+  let resultBlobUrl = null;
+
+  function setStatus(text, isError){
+    demoStatus.textContent = text;
+    demoStatus.classList.toggle('error', !!isError);
+  }
+
+  function lightHoles(on){
+    demoHead.classList.toggle('active', on);
+    demoHeadStatus.textContent = on ? 'DEVELOPING' : 'STANDBY';
+    if(!on){ holes.forEach(h => h.classList.remove('lit')); return; }
+    let i = 0;
+    const interval = setInterval(() => {
+      if(!demoHead.classList.contains('active')){ clearInterval(interval); return; }
+      holes.forEach((h, idx) => h.classList.toggle('lit', idx === i));
+      i = (i + 1) % holes.length;
+    }, 140);
+  }
+
+  ['dragenter','dragover'].forEach(evt => {
+    stage.addEventListener(evt, e => { e.preventDefault(); stage.classList.add('drag-over'); });
+  });
+  ['dragleave','drop'].forEach(evt => {
+    stage.addEventListener(evt, e => { e.preventDefault(); stage.classList.remove('drag-over'); });
+  });
+  stage.addEventListener('drop', e => {
+    const f = e.dataTransfer.files[0];
+    if(f) handleFile(f);
+  });
+  dropzone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => {
+    if(e.target.files[0]) handleFile(e.target.files[0]);
+  });
+
+  function handleFile(file){
+    if(!file.type.startsWith('image/')){
+      setStatus('Please choose a JPG or PNG image.', true);
+      return;
+    }
+    currentFile = file;
+    dropzone.style.display = 'none';
+    colorImg.classList.remove('revealed');
+    colorImg.style.display = 'none';
+
+    const url = URL.createObjectURL(file);
+    grayImg.src = url;
+    grayImg.style.display = 'block';
+    grayImg.style.filter = 'grayscale(1)';
+
+    resetBtn.disabled = false;
+    runColorize(file);
+  }
+
+  async function runColorize(file){
+    setStatus('Sending to generator…');
+    lightHoles(true);
+
+    const form = new FormData();
+    form.append('image', file);
+
+    try{
+      const res = await fetch('/api/colorize', { method: 'POST', body: form });
+      const data = await res.json();
+      if(!res.ok){
+        throw new Error(data.error || 'Server error');
+      }
+      const byteChars = atob(data.colorized_png_base64);
+      const byteNumbers = new Array(byteChars.length);
+      for(let i=0;i<byteChars.length;i++) byteNumbers[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([new Uint8Array(byteNumbers)], { type: 'image/png' });
+      resultBlobUrl = URL.createObjectURL(blob);
+
+      colorImg.src = resultBlobUrl;
+      colorImg.style.display = 'block';
+      colorImg.onload = () => {
+        requestAnimationFrame(() => colorImg.classList.add('revealed'));
+      };
+      downloadBtn.disabled = false;
+      setStatus('Colorization complete');
+    }catch(err){
+      setStatus('Could not colorize: ' + err.message, true);
+    }finally{
+      lightHoles(false);
+    }
+  }
+
+  resetBtn.addEventListener('click', () => {
+    currentFile = null;
+    fileInput.value = '';
+    grayImg.style.display = 'none';
+    colorImg.style.display = 'none';
+    colorImg.classList.remove('revealed');
+    dropzone.style.display = 'block';
+    resetBtn.disabled = true;
+    downloadBtn.disabled = true;
+    setStatus('Awaiting image');
+  });
+
+  downloadBtn.addEventListener('click', () => {
+    if(!resultBlobUrl) return;
+    const a = document.createElement('a');
+    a.href = resultBlobUrl;
+    a.download = 'colorized.png';
+    a.click();
+  });
+})();
+</script>
+
+</body>
+</html>
