@@ -1,4 +1,4 @@
-"""
+﻿"""
 app.py
 -------
 Streamlit web app for the GAN colorization demo -- portfolio/resume-ready
@@ -28,7 +28,7 @@ from config import cfg
 
 st.set_page_config(
     page_title="GAN Image Colorization",
-    page_icon="🎨",
+    page_icon="ðŸŽ¨",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -61,11 +61,11 @@ with st.sidebar:
     st.markdown("**Architecture**")
     st.markdown(
         "- U-Net Generator (skip connections)\n"
-        "- PatchGAN Discriminator (70×70 patches)\n"
+        "- PatchGAN Discriminator (70Ã—70 patches)\n"
         "- LAB color space (predicts a,b from L)\n"
         "- Adversarial (LSGAN) + L1 + VGG Perceptual loss"
     )
-    st.markdown("[View source on GitHub](https://github.com/YOUR_USERNAME/gan-image-colorization)")
+    st.markdown("[View source on GitHub](https://github.com/Manshvijaiswal/gan-image-colorization)")
 
     st.divider()
     st.subheader("Model settings")
@@ -95,7 +95,7 @@ def run_colorization(input_image, checkpoint_path):
 # ---------------------------------------------------------------------------
 # Header
 # ---------------------------------------------------------------------------
-st.title("🎨 GAN-Based Image Colorization")
+st.title("ðŸŽ¨ GAN-Based Image Colorization")
 st.markdown(
     '<p class="subtitle">Upload a black-and-white photo and a U-Net + '
     "PatchGAN conditional GAN predicts a realistic, plausible coloring.</p>",
@@ -103,7 +103,7 @@ st.markdown(
 )
 st.write("")
 
-tab_demo, tab_examples, tab_about = st.tabs(["🖼️ Try it", "✨ Example results", "📖 How it works"])
+tab_demo, tab_examples, tab_about = st.tabs(["ðŸ–¼ï¸ Try it", "âœ¨ Example results", "ðŸ“– How it works"])
 
 # ---------------------------------------------------------------------------
 # Tab 1: Main upload -> colorize demo
@@ -122,7 +122,7 @@ with tab_demo:
             st.subheader("Input")
             st.image(input_image, use_container_width=True)
 
-        if st.button("🎨 Colorize", type="primary"):
+        if st.button("ðŸŽ¨ Colorize", type="primary"):
             with st.spinner("Running generator..."):
                 try:
                     result = run_colorization(input_image, checkpoint_path)
@@ -132,7 +132,7 @@ with tab_demo:
 
                     out_buf = io.BytesIO()
                     result.save(out_buf, format="PNG")
-                    st.download_button("⬇ Download result", out_buf.getvalue(),
+                    st.download_button("â¬‡ Download result", out_buf.getvalue(),
                                         file_name="colorized.png", mime="image/png")
                 except FileNotFoundError:
                     st.error(
@@ -142,7 +142,7 @@ with tab_demo:
                         "file is included in the deployment (see DEPLOYMENT.md)."
                     )
     else:
-        st.info("👆 Upload an image to get started, or check the **Example results** tab.")
+        st.info("ðŸ‘† Upload an image to get started, or check the **Example results** tab.")
 
 # ---------------------------------------------------------------------------
 # Tab 2: Pre-computed example gallery
@@ -187,7 +187,7 @@ following the architecture introduced in *pix2pix* (Isola et al., 2017):
   predicts the *a, b* (color) channels in LAB color space. Skip connections
   preserve fine edges so color aligns precisely with object boundaries.
 - **Discriminator (PatchGAN):** instead of judging the whole image as
-  real/fake in one shot, it classifies overlapping 70×70 patches, giving a
+  real/fake in one shot, it classifies overlapping 70Ã—70 patches, giving a
   much richer training signal and sharper, more locally consistent color.
 - **Loss functions:** an adversarial loss pushes for realistic, vivid color
   (avoiding the washed-out results typical of pixel-loss-only models); an
@@ -202,7 +202,7 @@ rewards *realistic-looking* color, not just *numerically close* color.
 """)
 
 st.markdown(
-    '<div class="footer">Built with PyTorch + Streamlit · '
-    '<a href="https://github.com/YOUR_USERNAME/gan-image-colorization">Source on GitHub</a></div>',
+    '<div class="footer">Built with PyTorch + Streamlit Â· '
+    '<a href="https://github.com/Manshvijaiswal/gan-image-colorization">Source on GitHub</a></div>',
     unsafe_allow_html=True,
 )
